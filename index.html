@@ -2,152 +2,947 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AskMe Prototype</title>
+  <title>AskMe</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; max-width: 900px; }
-    label { display: block; margin-top: 12px; font-weight: bold; }
-    input, select, textarea, button { width: 100%; padding: 10px; margin-top: 6px; }
-    textarea { min-height: 120px; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .small { color: #666; font-size: 12px; }
-    .actions { display: flex; gap: 12px; margin-top: 12px; }
-    button { cursor: pointer; }
-    pre { white-space: pre-wrap; word-wrap: break-word; background: #f7f7f7; padding: 12px; border-radius: 8px; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --panel-soft: #fafbfc;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #ff9900;
+      --accent-dark: #e68a00;
+      --bot: #e8f1fb;
+      --user: #f3f4f6;
+      --danger: #b91c1c;
+      --danger-bg: #fef2f2;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app-shell {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 24px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .topbar {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 22px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .brand h1 {
+      font-size: 40px;
+      line-height: 1.05;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    .brand p {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 720px;
+      line-height: 1.45;
+    }
+
+    .topbar-badge {
+      align-self: center;
+      background: #fff7ed;
+      color: #9a3412;
+      border: 1px solid #fed7aa;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+    }
+
+    .sidebar,
+    .chat-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      min-height: 0;
+    }
+
+    .sidebar {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow: auto;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .section-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    label {
+      font-size: 13px;
+      color: #374151;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(255, 153, 0, 0.15);
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.15s, background 0.2s, box-shadow 0.2s, opacity 0.2s;
+    }
+
+    .primary-btn:hover,
+    .secondary-btn:hover,
+    .ghost-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary-btn:disabled,
+    .secondary-btn:disabled,
+    .ghost-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .primary-btn {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 6px 16px rgba(255, 153, 0, 0.25);
+    }
+
+    .primary-btn:hover:not(:disabled) {
+      background: var(--accent-dark);
+    }
+
+    .secondary-btn {
+      background: #111827;
+      color: white;
+    }
+
+    .secondary-btn:hover:not(:disabled) {
+      background: #000;
+    }
+
+    .ghost-btn {
+      background: #f9fafb;
+      color: #111827;
+      border: 1px solid var(--border);
+    }
+
+    .helper-card {
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+
+    .helper-card h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    .helper-card p,
+    .helper-card li {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .helper-card ul {
+      padding-left: 18px;
+      margin-top: 6px;
+    }
+
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      padding: 20px 22px 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(to bottom, #ffffff, #fbfcfd);
+    }
+
+    .chat-header h2 {
+      font-size: 22px;
+      margin-bottom: 6px;
+      color: #111827;
+    }
+
+    .chat-header p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .messages-area {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 22px;
+      background: #fcfcfd;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .welcome-message {
+      margin: auto 0;
+      background: white;
+      border: 1px dashed #d1d5db;
+      border-radius: 18px;
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .welcome-message h3 {
+      font-size: 24px;
+      color: #111827;
+      margin-bottom: 10px;
+    }
+
+    .welcome-message p {
+      line-height: 1.6;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      max-width: 85%;
+      gap: 6px;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+
+    .message.bot {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+
+    .message-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 0 4px;
+    }
+
+    .message-bubble {
+      padding: 14px 16px;
+      border-radius: 18px;
+      line-height: 1.55;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    }
+
+    .message.user .message-bubble {
+      background: var(--user);
+      border-bottom-right-radius: 6px;
+      color: #111827;
+    }
+
+    .message.bot .message-bubble {
+      background: var(--bot);
+      border-bottom-left-radius: 6px;
+      color: #111827;
+    }
+
+    .message-meta {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      padding: 0 4px;
+    }
+
+    .message-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    .message-actions button {
+      min-width: 120px;
+    }
+
+    .debug-panel {
+      margin-top: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .debug-summary {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      background: #f3f4f6;
+      list-style: none;
+    }
+
+    .debug-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .debug-content {
+      padding: 0;
+    }
+
+    .debug-content pre {
+      margin: 0;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #1f2937;
+    }
+
+    .typing-indicator {
+      display: none;
+      padding: 0 22px 16px;
+      background: #fcfcfd;
+    }
+
+    .typing-indicator.active {
+      display: flex;
+    }
+
+    .typing-bubble {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      background: var(--bot);
+      padding: 12px 14px;
+      border-radius: 16px;
+      border-bottom-left-radius: 6px;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      animation: typing 1.4s infinite;
+      opacity: 0.3;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    .error-banner {
+      display: none;
+      margin: 0 22px 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #fecaca;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .error-banner.show {
+      display: block;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .composer {
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      padding: 18px 22px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .composer-row {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .composer textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    .composer-actions {
+      width: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .subtle-note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    @keyframes typing {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-2px); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 1080px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        max-height: none;
+      }
+    }
+
+@media (max-width: 700px) {
+
+  .app-shell {
+    padding: 12px;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .brand h1 {
+    font-size: 28px;
+  }
+
+  .topbar {
+    padding: 16px;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* chat first on mobile */
+  .chat-panel {
+    order: 1;
+  }
+
+  .sidebar {
+    order: 2;
+  }
+
+  .chat-header,
+  .messages-area,
+  .composer,
+  .typing-indicator {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .error-banner {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .composer-row {
+    flex-direction: column;
+  }
+
+  .composer-actions {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  .composer-actions button {
+    flex: 1;
+  }
+
+  .message {
+    max-width: 100%;
+  }
+
+  .message-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .message-actions button {
+    width: 100%;
+  }
+}
+
+
   </style>
 </head>
 <body>
-  <h1>AskMe</h1>
-  <p>AI assistant for forecasting issue investigation</p>
-
-  <div class="card">
-    <div class="row">
-      <div>
-        <label>User role</label>
-        <select id="user_role">
-          <option>Operations Manager</option>
-          <option>Forecasting Analyst</option>
-        </select>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>AskMe</h1>
+        <p>AI assistant for forecasting issue investigation. Ask grounded questions about forecast deviations and get answers based on retrieved SOP rules, operational signals, and session context.</p>
       </div>
-      <div>
-        <label>ML model type</label>
-        <select id="model_type">
-          <option>Absence forecast</option>
-          <option>Volume forecast</option>
-        </select>
-      </div>
-    </div>
+   
+    </header>
 
-    <div class="row">
-      <div>
-        <label>Warehouse</label>
-        <input id="warehouse" value="BCN8" />
-      </div>
-      <div>
-        <label>Date</label>
-        <input id="date" type="date" value="2026-04-10" />
-      </div>
-    </div>
+    <main class="workspace">
+      <aside class="sidebar">
+        <div>
+          <div class="section-title">Investigation context</div>
+          <div class="section-subtitle">Set the role, model, site, and date so AskMe can retrieve the right SOP and operational signals.</div>
+        </div>
 
-    <label>Question</label>
-    <textarea id="question">Why is the absence forecast off for BCN8?</textarea>
+        <div class="field-grid">
+          <div class="field">
+            <label for="user_role">User role</label>
+            <select id="user_role">
+              <option>Operations Manager</option>
+              <option>Forecasting Analyst</option>
+            </select>
+          </div>
 
-    <button onclick="ask()">Ask</button>
-  </div>
+          <div class="field">
+            <label for="model_type">ML model type</label>
+            <select id="model_type">
+              <option>Absence forecast</option>
+              <option>Volume forecast</option>
+            </select>
+          </div>
 
-  <div id="result" class="card" style="display:none;">
-    <h3>Response</h3>
-    <div id="message"></div>
-    <div class="small" id="meta"></div>
-    <pre id="debug"></pre>
+          <div class="field">
+            <label for="warehouse">Warehouse</label>
+            <input id="warehouse" value="BCN8" />
+          </div>
 
-    <div class="actions">
-      <button onclick="sendFeedback('like')">Like</button>
-      <button onclick="sendFeedback('dislike')">Dislike</button>
-      <button onclick="escalate()">Escalate to human</button>
-    </div>
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" type="date" value="2026-04-10" />
+          </div>
+        </div>
+
+        <button class="primary-btn" id="askSidebarBtn">Ask now</button>
+
+        <div class="helper-card">
+          <h3>What AskMe uses</h3>
+          <ul>
+            <li>Retrieved SOP from the vector knowledge base</li>
+            <li>Operational ML signals for the selected site and date</li>
+            <li>Rule-priority reasoning from the SOP</li>
+            <li>Role-adapted explanation for the selected user</li>
+          </ul>
+        </div>
+
+        <div class="helper-card">
+          <h3>Example questions</h3>
+          <p>Why is the absence forecast off for BCN8?</p>
+          <p>Is the issue more likely driven by a calendar event or unexplained attendance drop?</p>
+        </div>
+      </aside>
+
+      <section class="chat-panel">
+        <div class="chat-header">
+          <h2>Conversation</h2>
+          <p>Ask a question below. AskMe will classify the issue using SOP logic and the retrieved signals, then explain the result in plain business language.</p>
+        </div>
+
+        <div class="messages-area" id="messages-area">
+          <div class="welcome-message" id="welcome-message">
+            <h3>Welcome to AskMe</h3>
+            <p>Start with a forecasting investigation question. You can keep the context on the left and ask follow-up questions in the same session.</p>
+          </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+          <div class="typing-bubble">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+
+        <div class="error-banner" id="error-banner"></div>
+
+        <div class="composer">
+          <div class="field">
+            <label for="question">Question</label>
+            <textarea id="question">Why is the absence forecast off for BCN8?</textarea>
+          </div>
+
+          <div class="composer-row">
+            <div class="subtle-note">
+              Session memory is preserved automatically in your browser. Feedback and escalation will be linked to the last assistant response.
+            </div>
+            <div class="composer-actions">
+              <button class="primary-btn" id="askBtn">Ask</button>
+              <button class="ghost-btn" id="clearBtn">Clear chat</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script>
     const API_URL = "https://61pab70usb.execute-api.eu-west-1.amazonaws.com/prod";
+
     let sessionId = localStorage.getItem("askme_session_id") || "";
     let currentResponse = null;
     let lastQuestion = "";
 
+    const messagesArea = document.getElementById("messages-area");
+    const welcomeMessage = document.getElementById("welcome-message");
+    const typingIndicator = document.getElementById("typing-indicator");
+    const errorBanner = document.getElementById("error-banner");
+
+    const askBtn = document.getElementById("askBtn");
+    const askSidebarBtn = document.getElementById("askSidebarBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function showError(message) {
+      errorBanner.textContent = message;
+      errorBanner.classList.add("show");
+    }
+
+    function hideError() {
+      errorBanner.textContent = "";
+      errorBanner.classList.remove("show");
+    }
+
+    function setLoading(isLoading) {
+      askBtn.disabled = isLoading;
+      askSidebarBtn.disabled = isLoading;
+      document.getElementById("question").disabled = isLoading;
+
+      if (isLoading) {
+        typingIndicator.classList.add("active");
+      } else {
+        typingIndicator.classList.remove("active");
+      }
+    }
+
+    function scrollMessagesToBottom() {
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function removeWelcomeMessage() {
+      if (welcomeMessage) {
+        welcomeMessage.remove();
+      }
+    }
+
+    function addUserMessage(text) {
+      removeWelcomeMessage();
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "message user";
+      wrapper.innerHTML = `
+        <div class="message-label">You</div>
+        <div class="message-bubble">${escapeHtml(text)}</div>
+      `;
+
+      messagesArea.appendChild(wrapper);
+      scrollMessagesToBottom();
+    }
+
+    function addBotMessage(data) {
+      removeWelcomeMessage();
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "message bot";
+
+      const message = data.message || data.error || "No response returned.";
+      const meta = `Session: ${data.session_id || "-"} | Root cause: ${data.root_cause_code || "-"} ${data.root_cause_name || ""} | Rule: ${data.rule_id || "-"}`;
+
+      wrapper.innerHTML = `
+        <div class="message-label">AskMe</div>
+        <div class="message-bubble">${escapeHtml(message)}</div>
+        <div class="message-meta">${escapeHtml(meta)}</div>
+        <div class="message-actions">
+          <button class="ghost-btn" type="button" onclick="sendFeedback('like')">Like</button>
+          <button class="ghost-btn" type="button" onclick="sendFeedback('dislike')">Dislike</button>
+          <button class="secondary-btn" type="button" onclick="escalate()">Escalate</button>
+        </div>
+        <details class="debug-panel">
+          <summary class="debug-summary">Response details</summary>
+          <div class="debug-content">
+            <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+          </div>
+        </details>
+      `;
+
+      messagesArea.appendChild(wrapper);
+      scrollMessagesToBottom();
+    }
+
     async function ask() {
+      hideError();
+
       const payload = {
         session_id: sessionId,
         user_role: document.getElementById("user_role").value,
         model_type: document.getElementById("model_type").value,
         warehouse: document.getElementById("warehouse").value,
         date: document.getElementById("date").value,
-        question: document.getElementById("question").value
+        question: document.getElementById("question").value.trim()
       };
 
-      lastQuestion = payload.question;
-
-      const res = await fetch(`${API_URL}/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      currentResponse = data;
-
-      if (data.session_id) {
-        sessionId = data.session_id;
-        localStorage.setItem("askme_session_id", sessionId);
+      if (!payload.question) {
+        showError("Please enter a question before sending.");
+        return;
       }
 
-      document.getElementById("result").style.display = "block";
-      document.getElementById("message").innerHTML = `<p>${data.message || data.error}</p>`;
-      document.getElementById("meta").innerText =
-        `Session: ${data.session_id || "-"} | Root cause: ${data.root_cause_code || "-"} ${data.root_cause_name || ""} | Rule: ${data.rule_id || "-"}`;
-      document.getElementById("debug").innerText = JSON.stringify(data, null, 2);
+      lastQuestion = payload.question;
+      addUserMessage(payload.question);
+      setLoading(true);
+
+      try {
+        const res = await fetch(`${API_URL}/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        currentResponse = data;
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || `Request failed with status ${res.status}`);
+        }
+
+        if (data.session_id) {
+          sessionId = data.session_id;
+          localStorage.setItem("askme_session_id", sessionId);
+        }
+
+        addBotMessage(data);
+      } catch (err) {
+        showError(err.message || "An unexpected error occurred.");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function sendFeedback(type) {
-      if (!currentResponse) return alert("Ask a question first.");
-      const payload = {
-        response_id: currentResponse.response_id,
-        session_id: currentResponse.session_id,
-        feedback_type: type
-      };
+      hideError();
 
-      const res = await fetch(`${API_URL}/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      if (!currentResponse) {
+        showError("Ask a question first.");
+        return;
+      }
 
-      const data = await res.json();
-      alert(`Feedback stored: ${type}`);
+      try {
+        const payload = {
+          response_id: currentResponse.response_id,
+          session_id: currentResponse.session_id,
+          feedback_type: type
+        };
+
+        const res = await fetch(`${API_URL}/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Feedback request failed.");
+        }
+
+        alert(`Feedback stored: ${type}`);
+      } catch (err) {
+        showError(err.message || "Unable to store feedback.");
+      }
     }
 
     async function escalate() {
-      if (!currentResponse) return alert("Ask a question first.");
+      hideError();
 
-      const payload = {
-        session_id: currentResponse.session_id,
-        user_question: lastQuestion,
-        chatbot_response: currentResponse.message,
-        user_role: document.getElementById("user_role").value,
-        model_type: document.getElementById("model_type").value,
-        warehouse: document.getElementById("warehouse").value,
-        date: document.getElementById("date").value
-      };
+      if (!currentResponse) {
+        showError("Ask a question first.");
+        return;
+      }
 
-      const res = await fetch(`${API_URL}/escalate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const payload = {
+          session_id: currentResponse.session_id,
+          user_question: lastQuestion,
+          chatbot_response: currentResponse.message,
+          user_role: document.getElementById("user_role").value,
+          model_type: document.getElementById("model_type").value,
+          warehouse: document.getElementById("warehouse").value,
+          date: document.getElementById("date").value
+        };
 
-      const data = await res.json();
-      alert(`Escalation stored: ${data.escalation_id}`);
+        const res = await fetch(`${API_URL}/escalate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Escalation request failed.");
+        }
+
+        alert(`Escalation stored: ${data.escalation_id}`);
+      } catch (err) {
+        showError(err.message || "Unable to escalate this response.");
+      }
     }
+
+    function clearChat() {
+      hideError();
+      currentResponse = null;
+      lastQuestion = "";
+      sessionId = "";
+      localStorage.removeItem("askme_session_id");
+
+      messagesArea.innerHTML = `
+        <div class="welcome-message" id="welcome-message">
+          <h3>Welcome to AskMe</h3>
+          <p>Start with a forecasting investigation question. You can keep the context on the left and ask follow-up questions in the same session.</p>
+        </div>
+      `;
+    }
+
+    askBtn.addEventListener("click", ask);
+    askSidebarBtn.addEventListener("click", ask);
+    clearBtn.addEventListener("click", clearChat);
+
+    document.getElementById("question").addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        ask();
+      }
+    });
+
+    window.sendFeedback = sendFeedback;
+    window.escalate = escalate;
   </script>
 </body>
 </html>
