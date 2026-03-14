@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AskMe Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; max-width: 900px; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input, select, textarea, button { width: 100%; padding: 10px; margin-top: 6px; }
+    textarea { min-height: 120px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .small { color: #666; font-size: 12px; }
+    .actions { display: flex; gap: 12px; margin-top: 12px; }
+    button { cursor: pointer; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #f7f7f7; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>AskMe</h1>
+  <p>AI assistant for forecasting issue investigation</p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>User role</label>
+        <select id="user_role">
+          <option>Operations Manager</option>
+          <option>Forecasting Analyst</option>
+        </select>
+      </div>
+      <div>
+        <label>ML model type</label>
+        <select id="model_type">
+          <option>Absence forecast</option>
+          <option>Volume forecast</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Warehouse</label>
+        <input id="warehouse" value="BCN8" />
+      </div>
+      <div>
+        <label>Date</label>
+        <input id="date" type="date" value="2026-04-10" />
+      </div>
+    </div>
+
+    <label>Question</label>
+    <textarea id="question">Why is the absence forecast off for BCN8?</textarea>
+
+    <button onclick="ask()">Ask</button>
+  </div>
+
+  <div id="result" class="card" style="display:none;">
+    <h3>Response</h3>
+    <div id="message"></div>
+    <div class="small" id="meta"></div>
+    <pre id="debug"></pre>
+
+    <div class="actions">
+      <button onclick="sendFeedback('like')">Like</button>
+      <button onclick="sendFeedback('dislike')">Dislike</button>
+      <button onclick="escalate()">Escalate to human</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://61pab70usb.execute-api.eu-west-1.amazonaws.com/prod";
+    let sessionId = localStorage.getItem("askme_session_id") || "";
+    let currentResponse = null;
+    let lastQuestion = "";
+
+    async function ask() {
+      const payload = {
+        session_id: sessionId,
+        user_role: document.getElementById("user_role").value,
+        model_type: document.getElementById("model_type").value,
+        warehouse: document.getElementById("warehouse").value,
+        date: document.getElementById("date").value,
+        question: document.getElementById("question").value
+      };
+
+      lastQuestion = payload.question;
+
+      const res = await fetch(`${API_URL}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      currentResponse = data;
+
+      if (data.session_id) {
+        sessionId = data.session_id;
+        localStorage.setItem("askme_session_id", sessionId);
+      }
+
+      document.getElementById("result").style.display = "block";
+      document.getElementById("message").innerHTML = `<p>${data.message || data.error}</p>`;
+      document.getElementById("meta").innerText =
+        `Session: ${data.session_id || "-"} | Root cause: ${data.root_cause_code || "-"} ${data.root_cause_name || ""} | Rule: ${data.rule_id || "-"}`;
+      document.getElementById("debug").innerText = JSON.stringify(data, null, 2);
+    }
+
+    async function sendFeedback(type) {
+      if (!currentResponse) return alert("Ask a question first.");
+      const payload = {
+        response_id: currentResponse.response_id,
+        session_id: currentResponse.session_id,
+        feedback_type: type
+      };
+
+      const res = await fetch(`${API_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      alert(`Feedback stored: ${type}`);
+    }
+
+    async function escalate() {
+      if (!currentResponse) return alert("Ask a question first.");
+
+      const payload = {
+        session_id: currentResponse.session_id,
+        user_question: lastQuestion,
+        chatbot_response: currentResponse.message,
+        user_role: document.getElementById("user_role").value,
+        model_type: document.getElementById("model_type").value,
+        warehouse: document.getElementById("warehouse").value,
+        date: document.getElementById("date").value
+      };
+
+      const res = await fetch(`${API_URL}/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      alert(`Escalation stored: ${data.escalation_id}`);
+    }
+  </script>
+</body>
+</html>
