@@ -52,10 +52,7 @@ If the question is outside this scope, AskMe must respond that the request is ou
 ## 3.1 High-Level Architecture
 
     [User Browser]
-         |
-         v
-    [S3 Static Web UI]
-         |
+             |
          v
     [API Gateway HTTP API]
          |
