@@ -4,8 +4,9 @@ AskMe is a prototype AI chatbot designed to help operational teams investigate i
 
 The chatbot acts as a **decision-support assistant**. It helps users understand why a forecasting issue occurred by combining:
 
-- the relevant **SOP** for the selected ML model
-- the relevant **ML signals** for the selected warehouse and date
+- the relevant **SOP** for the selected ML model (retrieved deterministically from S3)
+- the relevant **ML signals** for the selected warehouse and date (from DynamoDB)
+- the most relevant **FAQ knowledge chunks** (retrieved via semantic similarity)
 - the **user question**
 - the **session context**
 
@@ -61,14 +62,13 @@ If the question is outside this scope, AskMe must respond that the request is ou
          |------------------------------|
          |                              |
          v                              v
-    [DynamoDB: ML Signals]         [OpenSearch Serverless]
-    [DynamoDB: Sessions]           [SOP vector index]
+    [DynamoDB: ML Signals]         [S3 Knowledge Base]
+    [DynamoDB: Sessions]           [SOP + FAQ JSON + embeddings]
     [DynamoDB: Feedback]
     [DynamoDB: Escalations]
-         |                              |
-         |                              |
-         v                              v
-    [Amazon Bedrock Titan Embeddings] [retrieve SOP chunks]
+         |
+         v
+    [Amazon Bedrock Titan Embeddings]
          |
          v
     [Amazon Bedrock Converse API]
@@ -80,7 +80,7 @@ If the question is outside this scope, AskMe must respond that the request is ou
 
 - CloudWatch Logs
 - CloudWatch custom metrics via EMF
-- S3 bucket for raw SOP JSON documents
+- S3 bucket for SOP and FAQ knowledge storage
 
 ## 3.2 What Each Component Does
 
@@ -109,22 +109,25 @@ Exposes the backend endpoints:
 The Lambda function is the orchestration layer of the application. It:
 
 - validates scope
-- retrieves session memory
-- retrieves the right SOP from the vector database
+- retrieves session memory (last 3–5 turns)
+- retrieves the correct SOP deterministically from S3 using model_type
+- retrieves relevant FAQ chunks using embedding similarity
 - retrieves ML signals from DynamoDB
 - builds the LLM prompt
 - calls Amazon Bedrock Converse
 - stores the session turn
 - emits logs and metrics
 
-### OpenSearch Serverless
+### S3 Knowledge Base
 
-Used as the vector database for SOP retrieval.
+Used as the only knowledge store.
 
 It:
 
-- stores SOP embeddings
-- returns the relevant SOP content for the selected model
+- stores SOP documents (one per model) as JSON with embeddings
+- stores FAQ chunks as JSON with embeddings
+- enables deterministic retrieval for SOP
+- enables semantic retrieval for FAQ using cosine similarity
 
 ### DynamoDB
 
@@ -139,10 +142,10 @@ Tables:
 
 ### Amazon Bedrock
 
-Used for both embeddings and chat generation.
+Used for both embeddings and reasoning.
 
-- **Titan embeddings model**: embeds SOP chunks and retrieval queries
-- **Converse API**: classifies the issue using retrieved SOP + signals + user question + session context
+- **Titan embeddings model**: embeds FAQ chunks and user queries
+- **Converse API**: performs classification and generates grounded responses
 
 ---
 
@@ -158,8 +161,9 @@ The LLM must classify using:
 
 - the retrieved SOP for the selected model
 - the retrieved ML signals for the selected warehouse and date
+- the retrieved FAQ knowledge (for grounding and context)
 - the current user question
-- the session context
+- the session context (last 3–5 turns only)
 
 The LLM must **not** classify the issue from the user question alone.
 
@@ -184,9 +188,10 @@ The backend is responsible for:
 
 - validating input
 - validating whether the model type is in scope
-- retrieving the SOP
-- retrieving the ML signals
-- retrieving session history
+- retrieving the SOP (deterministic S3 retrieval)
+- retrieving FAQ chunks (embedding similarity)
+- retrieving ML signals
+- retrieving session history (bounded memory)
 - building the prompt
 - storing logs, feedback, escalation, and memory
 
@@ -198,8 +203,6 @@ The LLM is responsible for:
 - applying SOP rule order
 - determining the root cause
 - explaining reasoning in role-adapted language
-
-This separation keeps the architecture aligned with the business requirement: the response must be grounded in retrieved SOP and signals, not in user question alone.
 
 ---
 
@@ -221,47 +224,37 @@ The chatbot executes the following process:
 
 1. Receive the user input from the UI
 2. Validate whether the question is relevant to supported ML model issues
-3. Retrieve the appropriate SOP document for the selected ML model
-4. Retrieve the relevant ML signal records for the selected warehouse and date
-5. Combine retrieved SOP and ML signal data with the user question and session context
-6. Apply SOP classification rules
-7. Determine the root cause according to the rule priority order
-8. Generate a response adapted to the user role
-9. Return the response to the UI
-
-Before generating an answer, the chatbot retrieves two categories of information:
-
-- SOP documents defining classification rules
-- ML signal records describing forecast context
-
-If the question is outside supported scope, the chatbot responds that the request is outside its scope.
+3. Retrieve the SOP deterministically based on model_type
+4. Retrieve relevant FAQ chunks using semantic similarity
+5. Retrieve ML signals for the selected warehouse and date
+6. Retrieve recent session context (last 3–5 turns)
+7. Combine SOP + FAQ + signals + question + session context
+8. Apply SOP classification rules
+9. Determine the root cause
+10. Generate a role-adapted response
+11. Return the response to the UI
 
 ## 5.2 End-to-End Runtime Request Flow
 
 1. User opens the web UI
 2. User enters role, model type, warehouse, date, and question
 3. Browser calls `POST /ask`
-4. Lambda validates:
-   - required fields are present
-   - model is in the supported list
-5. Lambda loads recent session turns from `AskMeSessions`
-6. Lambda retrieves the SOP from OpenSearch using model-filtered vector search
-7. Lambda queries `AskMeSignals` for all signals for the model, site, and date
-8. Lambda builds a strict system prompt
-9. Lambda calls Amazon Bedrock Converse
-10. Lambda stores the session turn in `AskMeSessions`
-11. Lambda emits structured logs and metrics
-12. UI shows the answer with feedback and escalation options
+4. Lambda validates input
+5. Lambda loads recent session turns
+6. Lambda retrieves SOP from S3 (deterministic)
+7. Lambda retrieves FAQ chunks using embeddings + cosine similarity
+8. Lambda queries `AskMeSignals`
+9. Lambda builds the prompt
+10. Lambda calls Bedrock Converse
+11. Lambda stores session turn
+12. Lambda emits logs and metrics
+13. UI displays response
 
 ---
 
 # 6. Role-Adapted Response Design
 
-AskMe must tailor explanations to the selected user role.
-
 ## Operations Manager
-
-Response style:
 
 - simple explanation
 - focus on operational impact
@@ -269,8 +262,6 @@ Response style:
 - concise wording
 
 ## Forecasting Analyst
-
-Response style:
 
 - detailed reasoning
 - include classification logic
@@ -284,79 +275,51 @@ Response style:
 
 AskMe supports follow-up questions within the same session.
 
-Examples include:
+- Only the **last 3–5 turns** are included in the prompt
+- Older context is not used
+- If missing context is detected, the assistant asks for clarification
 
-- comparisons between warehouses
-- comparisons between dates
-- clarifications about previous answers
-
-Conversation memory is:
-
-- session-based
-- stored in the backend
-- retrieved before each new answer generation
-
-The `AskMeSessions` DynamoDB table stores prior turns so that the assistant can use recent context when answering follow-up questions.
+Memory is stored in `AskMeSessions` DynamoDB table.
 
 ---
 
 # 8. Escalation to Human
 
-The UI allows users to escalate a question to a human expert.
-
-For the prototype:
-
-- escalation does **not** trigger external systems
-- escalation records are stored
-- escalation data is available for later analytics
-
-Each escalation record contains:
-
-- session ID
-- user question
-- chatbot response
-- user role
-- model type
-- warehouse
-- date
-- timestamp
+- Users can escalate questions
+- Stored in `AskMeEscalations`
+- No external integration (demo mode)
+- Used for analytics and improvement
 
 ---
 
 # 9. Feedback Collection
 
-Users can provide feedback on each response:
+Users can provide:
 
-- `like`
-- `dislike`
+- like
+- dislike
 
-Feedback must be linked to the specific response so it can be used in analytics and future system improvement.
+Stored in `AskMeFeedback` and used for evaluation and improvement.
 
 ---
 
 # 10. Traceability and Logging
 
-The system logs the following for each request:
+The system logs:
 
 - user query
 - session ID
-- selected role
-- selected model
-- warehouse
-- date
+- selected role/model
 - retrieved SOP
+- retrieved FAQ chunks
 - retrieved signals
 - prompt inputs
 - generated response
 - timestamp
 
-This ensures the system is auditable and explainable.
-
 ---
 
 # 11. Metrics Tracked
-
-The system tracks the following operational metrics:
 
 - total responses
 - responses per role
@@ -365,18 +328,14 @@ The system tracks the following operational metrics:
 - positive feedback count
 - negative feedback count
 
-These metrics are emitted through CloudWatch custom metrics via EMF.
-
 ---
 
 # 12. Explainability Requirement
 
-All responses must explicitly reference:
+All responses must reference:
 
 - the SOP rule used
-- the ML signals used for classification
-
-This is a core product requirement. The assistant should never give an ungrounded answer.
+- the ML signals used
 
 ---
 
@@ -461,56 +420,256 @@ This is a core product requirement. The assistant should never give an ungrounde
 
 ---
 
-# 14. SOP Storage and Retrieval Design
 
-## 14.1 Why Vector Search Is Used
+# 14. Knowledge Storage and Retrieval Design
 
-OpenSearch Serverless vector collections are well suited for this use case because they are designed for modern similarity-search scenarios used in ML and GenAI applications.
+## 14.1 Design Overview
 
-They allow the system to retrieve relevant SOP content without managing search cluster infrastructure manually.
+The AskMe prototype uses a **lightweight, fully serverless retrieval architecture based on S3** instead of a traditional vector database.
 
-## 14.2 Simplified SOP Indexing Strategy for This Prototype
+The system combines three sources of information:
 
-This prototype only has two SOPs:
+- **SOP (deterministic retrieval)** → retrieved using model_type
+- **FAQ (semantic retrieval)** → retrieved using embeddings + cosine similarity
+- **ML signals (structured retrieval)** → retrieved from DynamoDB
 
-- Absence forecast SOP
-- Volume forecast SOP
+This hybrid approach ensures:
 
-For this implementation:
+- strong **determinism for critical business logic (SOP)**
+- flexible **semantic search for contextual knowledge (FAQ)**
+- full **traceability and auditability**
 
-- each SOP is stored as raw JSON in S3
-- each SOP is flattened into a text block for retrieval
-- the text block is embedded
-- one vector document is indexed per SOP in OpenSearch Serverless
+---
 
-This is sufficient for the prototype because retrieval only needs to return the correct SOP for the selected model.
+## 14.2 Why S3 + Embeddings Instead of Vector Database
 
-Each indexed vector document contains:
+In this prototype, S3 is used as the **only knowledge store**, with embeddings stored directly inside JSON files.
+
+### Why this works well for AskMe
+
+- The knowledge base is **small and controlled**:
+  - 2 SOP documents
+  - small FAQ (≤ 10 pages)
+- Retrieval does not require:
+  - large-scale indexing
+  - ANN (Approximate Nearest Neighbor)
+  - distributed search
+
+### Advantages of S3-based retrieval
+
+- **Simplicity**
+  - no cluster to manage
+  - no indexing pipeline complexity
+- **Cost efficiency**
+  - S3 storage is extremely cheap
+  - no always-on infrastructure (unlike OpenSearch)
+- **Full control**
+  - deterministic SOP retrieval
+  - explicit metadata filtering
+- **Auditability**
+  - documents are versioned and directly readable
+- **Flexibility**
+  - easy to update SOP or FAQ without reindexing pipelines
+
+### Trade-offs vs Vector Database
+
+| Aspect | S3 + Embeddings | Vector DB (OpenSearch, Pinecone) |
+|------|----------------|----------------------------------|
+| Cost | Very low | Higher (compute + storage) |
+| Complexity | Very low | Medium to high |
+| Scalability | Limited (brute force) | High (ANN indexing) |
+| Latency | Acceptable for small data | Optimized for large scale |
+| Use case fit | Small, controlled KB | Large, dynamic KB |
+
+### Design decision
+
+S3 + embeddings is the **best fit for this prototype** because:
+
+- knowledge size is small
+- retrieval must be **transparent and controllable**
+- cost and simplicity are prioritized over scalability
+
+---
+
+## 14.3 SOP Retrieval Strategy (Deterministic)
+
+Unlike FAQ, SOP retrieval is **not semantic**.
+
+### Why deterministic retrieval is used
+
+- The user **explicitly selects the model_type**
+- There is **exactly one SOP per model**
+- The SOP defines **formal classification rules**
+
+### Implementation
+
+- SOP is stored in S3 as a single JSON document per model
+- Retrieval is done using **metadata (model_type)**
+
+Example:
+
+    absence_forecast_sop.json
+    volume_forecast_sop.json
+
+### Benefits
+
+- **No ambiguity**
+- **No risk of retrieving wrong document**
+- **Full alignment with business rules**
+
+---
+
+## 14.4 FAQ Retrieval Strategy (Semantic)
+
+FAQ is retrieved using:
+
+- Titan embeddings
+- cosine similarity
+- brute-force search
+
+### Why semantic retrieval is used for FAQ
+
+- FAQ contains:
+  - product explanations
+  - ML concepts
+  - system behavior explanations
+- User questions are **free-form**
+- Exact keyword match is not sufficient
+
+### Retrieval steps
+
+1. Embed user question
+2. Load FAQ chunks from S3
+3. Compute cosine similarity
+4. Select top-K chunks
+
+### Example FAQ chunk
 
     {
-      "document_id": "sop_absence_forecast_v3",
-      "model_type": "Absence forecast",
-      "version": "v3",
-      "title": "Absence Forecast Issue Classification SOP",
-      "content": "Full flattened SOP text...",
+      "chunk_id": "faq_001",
+      "doc_type": "FAQ",
+      "scope_type": "general",
+      "model_type": null,
+      "title": "What does AskMe do?",
+      "content": "AskMe is an AI assistant that helps explain forecasting issues using SOP rules and ML signals.",
       "embedding": [ ... ]
     }
 
 ---
 
-# 15. Prompt Design
+## 14.5 Combined Retrieval Pattern
 
-Prompt design is central to this implementation because it enforces the intended behavior.
+For every request, the system ALWAYS retrieves:
 
-The prompt ensures that:
+- SOP (deterministic)
+- FAQ (semantic)
+- signals (structured)
 
-- the LLM uses retrieved evidence
-- the LLM follows SOP rule priority
-- the LLM returns a structured response
-- the explanation is adapted to the role
-- the response remains explainable and auditable
+There is:
 
-## 15.1 System Prompt Template
+- no routing
+- no conditional retrieval
+- no LLM-based retrieval decisions
+
+This ensures:
+
+- consistent behavior
+- explainability
+- no hidden logic
+
+---
+
+# 15. Classification Design: LLM vs Deterministic Logic
+
+## 15.1 Why Not Use Deterministic Code for Classification
+
+An alternative would be to implement SOP rules in Python code.
+
+Example:
+
+    if school_holiday_flag == True:
+        return ABS_RC2
+
+### Limitations of deterministic logic
+
+- Hard to maintain as rules evolve
+- Difficult to:
+  - interpret complex conditions
+  - handle missing or noisy signals
+- No natural language explanation
+- No flexibility for edge cases
+
+---
+
+## 15.2 Why LLM-Based Classification Is Used
+
+The LLM performs classification **after retrieval**, using SOP + signals.
+
+### Key advantages
+
+#### 1. Flexibility
+
+- Handles:
+  - partial signals
+  - noisy data
+  - ambiguous cases
+
+#### 2. Natural reasoning
+
+- Interprets:
+  - conditions
+  - context
+  - relationships between signals
+
+#### 3. Explainability
+
+- Generates:
+  - human-readable explanation
+  - references to SOP and signals
+
+#### 4. Maintainability
+
+- No need to rewrite code when SOP changes
+- Just update SOP JSON
+
+---
+
+## 15.3 Trade-off: LLM vs Deterministic Logic
+
+| Aspect | Deterministic Rules | LLM Classification |
+|------|--------------------|-------------------|
+| Control | Very high | High (prompt-controlled) |
+| Flexibility | Low | High |
+| Explainability | Low | High |
+| Maintenance | Hard-coded | Data-driven (SOP) |
+| Robustness to missing data | Low | High |
+
+### Design decision
+
+The system uses:
+
+- **LLM for classification**
+- **SOP as the source of truth**
+
+This provides:
+
+- flexibility
+- explainability
+- alignment with business rules
+
+---
+
+# 16. Prompt Design
+
+Prompt design enforces strict behavior:
+
+- use retrieved evidence only
+- follow SOP rule order
+- return structured JSON
+- adapt to user role
+- avoid hallucinations
+
+## 16.1 System Prompt Template
 
     You are AskMe, an AI decision-support assistant for forecasting issue investigation.
 
@@ -546,124 +705,61 @@ The prompt ensures that:
     - Do not invent signals that were not retrieved.
     - Do not invent SOP rules that were not retrieved.
 
-    Role adaptation:
-    - Operations Manager: simple language, operational impact, concise.
-    - Forecasting Analyst: detailed reasoning, rule logic, signals, traceability.
-
-    Return JSON only in this exact format:
-    {
-      "in_scope": true,
-      "root_cause_code": "",
-      "root_cause_name": "",
-      "rule_id": "",
-      "rule_reason": "",
-      "signals_used": [],
-      "role_adapted_explanation": "",
-      "confidence_note": ""
-    }
-
-## 15.2 User Message Template
-
-    {
-      "user_role": "Operations Manager",
-      "model_type": "Absence forecast",
-      "warehouse": "BCN8",
-      "date": "2026-04-10",
-      "user_question": "Why is the absence forecast off for BCN8?",
-      "session_context": [
-        {
-          "user_question": "Was it due to a local event?",
-          "assistant_response": "No local event signal was found."
-        }
-      ],
-      "retrieved_sop": { "...": "full SOP json..." },
-      "retrieved_signals": [ "...signal records..." ]
-    }
-
 ---
 
-# 16. Example Operating Principle
+# 17. Example Operating Principle
 
-The implementation follows a strict grounded-generation pattern:
-
-1. The user selects the model and submits a question
-2. The backend retrieves the correct SOP
-3. The backend retrieves the relevant ML signals
-4. The LLM receives both retrieved sources plus the session context
-5. The LLM applies the SOP rules in order
-6. The LLM selects the first matching root cause
-7. The LLM explains the result in language adapted to the user role
-8. The system stores the turn for memory, analytics, and auditability
-
-This is the key principle that prevents the model from answering based only on the question.
-
----
-
-# 17. Example Response Expectations
-
-A valid AskMe response should include:
-
-- whether the question is in scope
-- root cause code
-- root cause name
-- rule ID used
-- reason the rule matched
-- signals used
-- role-adapted explanation
-- confidence note
-
-The response must stay grounded in retrieved evidence and reference both:
-
-- the SOP rule
-- the ML signals used for classification
+1. Retrieve SOP (deterministic)
+2. Retrieve FAQ (semantic)
+3. Retrieve signals
+4. Build prompt
+5. LLM applies SOP rules
+6. Select first matching root cause
+7. Generate explanation
+8. Store and return response
 
 ---
 
 # 18. Assumptions for This Prototype
 
-To keep the prototype practical and easy to deploy, the implementation assumes:
-
 - AWS Region is `eu-west-1`
-- frontend is a static HTML/JS app in S3
-- backend is a single Lambda behind API Gateway
-- no authentication is included in the prototype
-- only two ML models are supported
-- only one SOP exists per supported model
-- SOP retrieval is based on vector search over flattened SOP documents
-- ML signals are stored in DynamoDB and queried by model/site/date
-- session memory is short-term and stored in DynamoDB
-- escalation is stored only for demo analytics and does not trigger external workflows
+- frontend is static (GitHub Pages or S3)
+- backend is a single Lambda
+- no authentication
+- only 2 models
+- 1 SOP per model
+- small FAQ
+- brute-force retrieval
+- no vector DB
+- session memory is short-term
+- escalation is demo-only
 
 ---
 
 # 19. Repository Contents
 
-This repository should contain implementation assets such as:
-
-- frontend files for the web UI
-- backend deployment assets
-- SOP JSON examples
-- ML signal example data
+- frontend UI
+- Lambda backend
+- SOP JSON
+- FAQ JSON
 - deployment scripts
-- configuration files
+- configuration
 - this README
-
-This README intentionally documents the architecture, runtime behavior, data model, retrieval design, and prompt strategy without embedding full Lambda source code.
 
 ---
 
 # 20. Summary
 
-AskMe is a serverless, retrieval-grounded AI assistant for investigating forecasting anomalies.
+AskMe is a serverless, retrieval-grounded AI assistant.
 
-Its main design principles are:
+Key design principles:
 
-- **retrieval before classification**
-- **LLM classification grounded in SOP + signals**
-- **strict SOP rule order**
-- **role-adapted explanation**
-- **session-based memory**
-- **traceability and explainability**
-- **feedback and escalation support**
+- **deterministic SOP retrieval**
+- **semantic FAQ retrieval**
+- **LLM-based classification**
+- **no vector database**
+- **bounded memory**
+- **traceability and auditability**
+- **low-cost, simple architecture**
 
-This design makes the prototype suitable for demonstrating how an AI assistant can support operational investigation workflows while remaining auditable, controlled, and grounded in official SOP logic.
+This design demonstrates how to build a **controlled, explainable AI system** that combines structured rules with LLM reasoning.
