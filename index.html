@@ -58,6 +58,10 @@
       flex-wrap: wrap;
     }
 
+    .brand {
+      flex: 1 1 100%;
+    }
+
     .brand h1 {
       font-size: 40px;
       line-height: 1.05;
@@ -68,7 +72,8 @@
     .brand p {
       color: var(--muted);
       font-size: 15px;
-      max-width: 720px;
+      max-width: none;
+      width: 100%;
       line-height: 1.45;
     }
 
@@ -517,77 +522,73 @@
       }
     }
 
-@media (max-width: 700px) {
+    @media (max-width: 700px) {
+      .app-shell {
+        padding: 12px;
+        height: auto;
+        min-height: 100vh;
+      }
 
-  .app-shell {
-    padding: 12px;
-    height: auto;
-    min-height: 100vh;
-  }
+      .brand h1 {
+        font-size: 28px;
+      }
 
-  .brand h1 {
-    font-size: 28px;
-  }
+      .topbar {
+        padding: 16px;
+      }
 
-  .topbar {
-    padding: 16px;
-  }
+      .workspace {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
 
-  .workspace {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
+      .chat-panel {
+        order: 1;
+      }
 
-  /* chat first on mobile */
-  .chat-panel {
-    order: 1;
-  }
+      .sidebar {
+        order: 2;
+      }
 
-  .sidebar {
-    order: 2;
-  }
+      .chat-header,
+      .messages-area,
+      .composer,
+      .typing-indicator {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
 
-  .chat-header,
-  .messages-area,
-  .composer,
-  .typing-indicator {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
+      .error-banner {
+        margin-left: 14px;
+        margin-right: 14px;
+      }
 
-  .error-banner {
-    margin-left: 14px;
-    margin-right: 14px;
-  }
+      .composer-row {
+        flex-direction: column;
+      }
 
-  .composer-row {
-    flex-direction: column;
-  }
+      .composer-actions {
+        width: 100%;
+        flex-direction: row;
+      }
 
-  .composer-actions {
-    width: 100%;
-    flex-direction: row;
-  }
+      .composer-actions button {
+        flex: 1;
+      }
 
-  .composer-actions button {
-    flex: 1;
-  }
+      .message {
+        max-width: 100%;
+      }
 
-  .message {
-    max-width: 100%;
-  }
+      .message-actions {
+        flex-direction: column;
+        width: 100%;
+      }
 
-  .message-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .message-actions button {
-    width: 100%;
-  }
-}
-
-
+      .message-actions button {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -595,9 +596,8 @@
     <header class="topbar">
       <div class="brand">
         <h1>AskMe</h1>
-        <p>AI assistant for forecasting issue investigation. Ask grounded questions about forecast deviations and get answers based on retrieved SOP rules, operational signals, and session context.</p>
+        <p>Investigate forecast issues faster with grounded, explainable answers based on SOP rules, operational signals, and recent context.</p>
       </div>
-   
     </header>
 
     <main class="workspace">
@@ -626,7 +626,11 @@
 
           <div class="field">
             <label for="warehouse">Warehouse</label>
-            <input id="warehouse" value="BCN8" />
+            <select id="warehouse">
+              <option>BCN8</option>
+              <option>BER8</option>
+              <option>PAR8</option>
+            </select>
           </div>
 
           <div class="field">
@@ -635,18 +639,17 @@
           </div>
         </div>
 
-        <button class="primary-btn" id="askSidebarBtn">Ask now</button>
-
         <div class="helper-card">
           <h3>What AskMe uses</h3>
           <ul>
             <li>SOP-driven root cause classification</li>
-            <li>Contextual ML insights grounded in FAQ and domain knowledge</li>
-            <li>Real-time operational signals for the selected site and date</li>
+            <li>Near real-time operational signals for the selected site and date</li>
+            <li>Grounded ML insights from FAQ and domain knowledge</li>
             <li>Explainable AI with rule-based reasoning and traceable outputs</li>
+            <li>Role-adapted explanations for operations and forecasting users</li>
+            <li>Ensured security, data privacy and compliance</li>
           </ul>
         </div>
-
       </aside>
 
       <section class="chat-panel">
@@ -675,7 +678,7 @@
         <div class="composer">
           <div class="field">
             <label for="question">Question</label>
-            <textarea id="question">Why is the absence forecast off for BCN8?</textarea>
+            <textarea id="question">Ask me questions about Absence or Volume forecast</textarea>
           </div>
 
           <div class="composer-row">
@@ -695,6 +698,116 @@
   <script>
     const API_URL = "https://61pab70usb.execute-api.eu-west-1.amazonaws.com/prod";
 
+    const SOP_DATA = {
+      "Absence forecast": {
+        "document_id": "sop_absence_forecast_v3",
+        "model_type": "Absence forecast",
+        "version": "v3",
+        "title": "Absence Forecast Issue Classification SOP",
+        "root_causes": [
+          {
+            "code": "ABS_RC1",
+            "name": "Unexpected attendance drop",
+            "description": "Observed absence exceeds expected baseline without calendar explanation."
+          },
+          {
+            "code": "ABS_RC2",
+            "name": "School holiday impact",
+            "description": "School holidays increase employee absence."
+          },
+          {
+            "code": "ABS_RC3",
+            "name": "Calendar or local event effect",
+            "description": "Public holiday or local event affects attendance."
+          },
+          {
+            "code": "ABS_RC4",
+            "name": "Insufficient evidence",
+            "description": "Signals do not allow root cause determination."
+          }
+        ],
+        "classification_policy": {
+          "default_root_cause": "ABS_RC4",
+          "rule_priority_order": [
+            "ABS_RC2",
+            "ABS_RC3",
+            "ABS_RC1",
+            "ABS_RC4"
+          ],
+          "rules": [
+            {
+              "rule_id": "R1",
+              "if": "school_holiday_flag = true",
+              "then": "ABS_RC2"
+            },
+            {
+              "rule_id": "R2",
+              "if": "calendar_event_flag = true",
+              "then": "ABS_RC3"
+            },
+            {
+              "rule_id": "R3",
+              "if": "absence_rate deviation > threshold AND no event signals true",
+              "then": "ABS_RC1"
+            },
+            {
+              "rule_id": "R4",
+              "if": "signals missing OR contradictory",
+              "then": "ABS_RC4"
+            }
+          ]
+        }
+      },
+      "Volume forecast": {
+        "document_id": "sop_volume_forecast_v2",
+        "model_type": "Volume forecast",
+        "version": "v2",
+        "title": "Volume Forecast Issue Classification SOP",
+        "root_causes": [
+          {
+            "code": "VOL_RC1",
+            "name": "Demand spike",
+            "description": "Observed package volume exceeds expected baseline."
+          },
+          {
+            "code": "VOL_RC2",
+            "name": "Promotion effect",
+            "description": "Promotion campaign increased package volume."
+          },
+          {
+            "code": "VOL_RC3",
+            "name": "Insufficient evidence",
+            "description": "Signals insufficient to determine cause."
+          }
+        ],
+        "classification_policy": {
+          "default_root_cause": "VOL_RC3",
+          "rule_priority_order": [
+            "VOL_RC2",
+            "VOL_RC1",
+            "VOL_RC3"
+          ],
+          "rules": [
+            {
+              "rule_id": "V1",
+              "if": "promotion_flag = true",
+              "then": "VOL_RC2"
+            },
+            {
+              "rule_id": "V2",
+              "if": "inbound_volume deviation > threshold",
+              "then": "VOL_RC1"
+            },
+            {
+              "rule_id": "V3",
+              "if": "signals missing",
+              "then": "VOL_RC3"
+            }
+          ]
+        }
+      }
+    };
+
     let sessionId = localStorage.getItem("askme_session_id") || "";
     let currentResponse = null;
     let lastQuestion = "";
@@ -705,7 +818,6 @@
     const errorBanner = document.getElementById("error-banner");
 
     const askBtn = document.getElementById("askBtn");
-    const askSidebarBtn = document.getElementById("askSidebarBtn");
     const clearBtn = document.getElementById("clearBtn");
 
     function escapeHtml(str) {
@@ -729,7 +841,6 @@
 
     function setLoading(isLoading) {
       askBtn.disabled = isLoading;
-      askSidebarBtn.disabled = isLoading;
       document.getElementById("question").disabled = isLoading;
 
       if (isLoading) {
@@ -744,9 +855,15 @@
     }
 
     function removeWelcomeMessage() {
-      if (welcomeMessage) {
-        welcomeMessage.remove();
+      const welcome = document.getElementById("welcome-message");
+      if (welcome) {
+        welcome.remove();
       }
+    }
+
+    function getSelectedSop() {
+      const modelType = document.getElementById("model_type").value;
+      return SOP_DATA[modelType] || null;
     }
 
     function addUserMessage(text) {
@@ -772,6 +889,11 @@
       const message = data.message || data.error || "No response returned.";
       const meta = `Session: ${data.session_id || "-"} | Root cause: ${data.root_cause_code || "-"} ${data.root_cause_name || ""} | Rule: ${data.rule_id || "-"}`;
 
+      const responseDetails = {
+        sop_for_selected_model: getSelectedSop(),
+        response: data
+      };
+
       wrapper.innerHTML = `
         <div class="message-label">AskMe</div>
         <div class="message-bubble">${escapeHtml(message)}</div>
@@ -784,7 +906,7 @@
         <details class="debug-panel">
           <summary class="debug-summary">Response details</summary>
           <div class="debug-content">
-            <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+            <pre>${escapeHtml(JSON.stringify(responseDetails, null, 2))}</pre>
           </div>
         </details>
       `;
@@ -927,7 +1049,6 @@
     }
 
     askBtn.addEventListener("click", ask);
-    askSidebarBtn.addEventListener("click", ask);
     clearBtn.addEventListener("click", clearChat);
 
     document.getElementById("question").addEventListener("keydown", (e) => {
